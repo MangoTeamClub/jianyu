@@ -176,6 +176,10 @@
             position: relative;
         }
         
+        .contact-avatar.ai {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+        }
+        
         .contact-status {
             position: absolute;
             bottom: 0;
@@ -202,6 +206,10 @@
             font-weight: 500;
             margin-bottom: 3px;
             color: #FFC300;
+        }
+        
+        .contact-name.ai {
+            color: #2196F3;
         }
         
         .contact-lastmsg {
@@ -241,6 +249,10 @@
             font-weight: bold;
             color: white;
             position: relative;
+        }
+        
+        .chat-contact-avatar.ai {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
         }
         
         .chat-contact-info {
@@ -377,6 +389,27 @@
         .connect-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+        }
+        
+        /* 文件按钮 */
+        .file-btn {
+            padding: 0 20px;
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: white;
+            border: none;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .file-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
         }
         
         /* 模态框样式 */
@@ -533,6 +566,48 @@
             margin-left: 5px;
         }
         
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 16px;
+            background: white;
+            border-radius: 18px;
+            align-self: flex-start;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            animation: typingAnimation 1.5s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingAnimation {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.6;
+            }
+            30% {
+                transform: translateY(-5px);
+                opacity: 1;
+            }
+        }
+        
         /* 响应式设计 */
         @media (max-width: 900px) {
             .container {
@@ -541,6 +616,21 @@
             
             .sidebar {
                 width: 250px;
+            }
+            
+            .chat-header-actions {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+            
+            .file-btn {
+                padding: 0 15px;
+                font-size: 13px;
+            }
+            
+            .connect-btn {
+                padding: 0 15px;
+                font-size: 13px;
             }
         }
         
@@ -561,6 +651,17 @@
             
             .chat-area {
                 height: 60%;
+            }
+            
+            .chat-header {
+                padding: 15px;
+                flex-wrap: wrap;
+            }
+            
+            .chat-header-actions {
+                width: 100%;
+                justify-content: space-between;
+                margin-top: 10px;
             }
         }
     </style>
@@ -697,6 +798,10 @@
                     </div>
                 </div>
                 <div class="chat-header-actions">
+                    <button class="file-btn" id="fileBtn" title="打开文件管理器">
+                        <i class="fas fa-folder-open"></i>
+                        <span>文件</span>
+                    </button>
                     <button class="connect-btn" id="connectBtn" title="连接联系人" style="display: none;">连接</button>
                     <button class="action-btn" id="clearChatBtn" title="清空聊天记录">
                         <i class="fas fa-trash-alt"></i>
@@ -762,6 +867,7 @@
             const clearChatBtn = document.getElementById('clearChatBtn');
             const disconnectBtn = document.getElementById('disconnectBtn');
             const connectBtn = document.getElementById('connectBtn');
+            const fileBtn = document.getElementById('fileBtn');
             
             // 模态框元素
             const addContactModal = document.getElementById('addContactModal');
@@ -788,6 +894,15 @@
             let contacts = [];
             let isIdSetOnce = false;
             let isConnecting = false;
+            let isAITyping = false;
+            
+            // AI助手常量
+            const AI_CONTACT_ID = 'AI-Assistant';
+            const AI_CONTACT_NAME = 'AI助手';
+            const AI_API_URL = 'https://api.jkyai.top/API/depsek3.2.php';
+            
+            // 文件管理器网址
+            const FILE_MANAGER_URL = 'http://mw.ikun.ren/';
             
             // 检查是否已经同意过免责声明
             function checkDisclaimer() {
@@ -827,7 +942,7 @@
                 // 初始化PeerJS
                 initializePeer();
                 
-                // 加载联系人
+                // 加载联系人（包含默认的AI助手）
                 loadContacts();
                 
                 // 设置事件监听器
@@ -929,6 +1044,12 @@
                 // 处理传入连接
                 peer.on('connection', function(connection) {
                     console.log('收到连接请求:', connection.peer);
+                    
+                    // 如果是AI助手，拒绝连接
+                    if (connection.peer === AI_CONTACT_ID) {
+                        connection.close();
+                        return;
+                    }
                     
                     // 查找联系人
                     const contact = contacts.find(c => c.id === connection.peer);
@@ -1068,6 +1189,25 @@
             
             // 连接到联系人
             function connectToContact(contact) {
+                // 如果是AI助手，特殊处理
+                if (contact.id === AI_CONTACT_ID) {
+                    console.log('连接到AI助手');
+                    isConnected = true;
+                    
+                    // 更新联系人状态
+                    contact.status = 'online';
+                    updateContactStatus(contact.id, 'online');
+                    
+                    // 更新聊天界面
+                    updateChatHeader(contact);
+                    enableChatInput(true);
+                    disconnectBtn.disabled = false;
+                    connectBtn.style.display = 'none';
+                    
+                    showNotification('已连接到AI助手', false, 'info');
+                    return;
+                }
+                
                 if (!peer || !peer.id) {
                     showNotification('请等待连接到服务器', true);
                     return;
@@ -1130,7 +1270,7 @@
                 // 但我们可以尝试连接到每个联系人并检查是否成功
                 // 这里简化处理，将所有联系人状态重置为离线
                 contacts.forEach(contact => {
-                    if (contact.id !== peer.id) {
+                    if (contact.id !== peer.id && contact.id !== AI_CONTACT_ID) {
                         contact.status = 'offline';
                     }
                 });
@@ -1141,6 +1281,29 @@
             function loadContacts() {
                 const contactsJSON = localStorage.getItem('mangoQQContacts');
                 contacts = contactsJSON ? JSON.parse(contactsJSON) : [];
+                
+                // 检查是否已存在AI助手联系人，如果不存在则添加
+                const aiContactExists = contacts.some(c => c.id === AI_CONTACT_ID);
+                if (!aiContactExists) {
+                    const aiContact = {
+                        id: AI_CONTACT_ID,
+                        name: AI_CONTACT_NAME,
+                        status: 'online',
+                        lastMessage: '你好！我是AI助手，可以回答你的问题。',
+                        unread: 0,
+                        isAI: true
+                    };
+                    contacts.unshift(aiContact); // 添加到列表开头
+                    saveContacts();
+                } else {
+                    // 确保AI联系人状态为在线
+                    const aiContact = contacts.find(c => c.id === AI_CONTACT_ID);
+                    if (aiContact) {
+                        aiContact.status = 'online';
+                        aiContact.isAI = true;
+                    }
+                }
+                
                 renderContacts();
             }
             
@@ -1172,13 +1335,17 @@
                     const firstLetter = contact.name.charAt(0).toUpperCase();
                     const unreadBadge = contact.unread ? `<span class="unread-badge">${contact.unread}</span>` : '';
                     
+                    // 为AI联系人添加特殊样式
+                    const avatarClass = contact.isAI ? 'contact-avatar ai' : 'contact-avatar';
+                    const nameClass = contact.isAI ? 'contact-name ai' : 'contact-name';
+                    
                     contactItem.innerHTML = `
-                        <div class="contact-avatar">
+                        <div class="${avatarClass}">
                             ${firstLetter}
                             <div class="contact-status ${contact.status || 'offline'}"></div>
                         </div>
                         <div class="contact-info">
-                            <div class="contact-name">${contact.name} ${unreadBadge}</div>
+                            <div class="${nameClass}">${contact.name} ${unreadBadge}</div>
                             <div class="contact-lastmsg">${contact.lastMessage || '暂无消息'}</div>
                         </div>
                     `;
@@ -1206,12 +1373,19 @@
                     return false;
                 }
                 
+                // 检查是否是AI助手ID
+                if (id === AI_CONTACT_ID) {
+                    showNotification('AI助手已默认添加', true);
+                    return false;
+                }
+                
                 const newContact = {
                     id: id,
                     name: name,
                     status: 'offline',
                     lastMessage: '',
-                    unread: 0
+                    unread: 0,
+                    isAI: false
                 };
                 
                 contacts.push(newContact);
@@ -1226,6 +1400,11 @@
             
             // 检查联系人在线状态
             function checkContactOnlineStatus(contactId) {
+                // 如果是AI助手，直接返回在线
+                if (contactId === AI_CONTACT_ID) {
+                    return;
+                }
+                
                 // 创建一个临时连接来检查在线状态
                 const tempConn = peer.connect(contactId, {
                     reliable: false,
@@ -1258,7 +1437,16 @@
                 saveContacts();
                 
                 // 显示或隐藏连接按钮
-                if (conn && conn.peer === contact.id && isConnected) {
+                if (contact.id === AI_CONTACT_ID) {
+                    // AI助手始终显示为已连接
+                    enableChatInput(true);
+                    disconnectBtn.disabled = false;
+                    connectBtn.style.display = 'none';
+                    
+                    // 更新聊天头部状态
+                    chatStatusIndicator.style.background = '#4caf50';
+                    chatStatusText.textContent = '在线';
+                } else if (conn && conn.peer === contact.id && isConnected) {
                     enableChatInput(true);
                     disconnectBtn.disabled = false;
                     connectBtn.style.display = 'none';
@@ -1274,7 +1462,14 @@
                 chatContactName.textContent = contact.name;
                 chatContactAvatar.textContent = contact.name.charAt(0).toUpperCase();
                 
-                if (contact.status === 'online') {
+                // 为AI联系人添加特殊样式
+                if (contact.isAI) {
+                    chatContactAvatar.classList.add('ai');
+                } else {
+                    chatContactAvatar.classList.remove('ai');
+                }
+                
+                if (contact.status === 'online' || contact.id === AI_CONTACT_ID) {
                     chatStatusIndicator.style.background = '#4caf50';
                     chatStatusText.textContent = '在线';
                 } else {
@@ -1290,7 +1485,12 @@
             function enableChatInput(enabled) {
                 messageInput.disabled = !enabled;
                 sendBtn.disabled = !enabled;
-                messageInput.placeholder = enabled ? '输入消息...' : '未连接，无法发送消息';
+                
+                if (currentContact && currentContact.id === AI_CONTACT_ID) {
+                    messageInput.placeholder = '向AI助手提问...';
+                } else {
+                    messageInput.placeholder = enabled ? '输入消息...' : '未连接，无法发送消息';
+                }
             }
             
             // 为指定联系人加载聊天历史
@@ -1354,6 +1554,34 @@
                 emptyChatMessage.classList.add('hidden');
             }
             
+            // 显示AI输入中指示器
+            function showAITypingIndicator() {
+                if (isAITyping) return;
+                
+                isAITyping = true;
+                const typingElement = document.createElement('div');
+                typingElement.className = 'typing-indicator';
+                typingElement.id = 'aiTypingIndicator';
+                typingElement.innerHTML = `
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <span style="margin-left: 5px; font-size: 12px; color: #666;">AI正在思考...</span>
+                `;
+                
+                messageContainer.appendChild(typingElement);
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+            }
+            
+            // 隐藏AI输入中指示器
+            function hideAITypingIndicator() {
+                isAITyping = false;
+                const typingElement = document.getElementById('aiTypingIndicator');
+                if (typingElement) {
+                    typingElement.remove();
+                }
+            }
+            
             // 显示通知
             function showNotification(message, isError = false, type = '') {
                 notification.textContent = message;
@@ -1371,8 +1599,37 @@
                 }, 3000);
             }
             
+            // 调用AI API
+            async function callAIAPI(question) {
+                try {
+                    showAITypingIndicator();
+                    
+                    const response = await fetch(`${AI_API_URL}?question=${encodeURIComponent(question)}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const text = await response.text();
+                    hideAITypingIndicator();
+                    
+                    return text;
+                } catch (error) {
+                    hideAITypingIndicator();
+                    console.error('调用AI API时出错:', error);
+                    return `抱歉，我遇到了一个错误：${error.message}`;
+                }
+            }
+            
             // 设置事件监听器
             function setupEventListeners() {
+                // 文件按钮点击事件 - 跳转到文件管理器
+                fileBtn.addEventListener('click', function() {
+                    // 在新标签页中打开文件管理器
+                    window.open(FILE_MANAGER_URL, '_blank');
+                    showNotification('正在打开文件管理器...', false, 'info');
+                });
+                
                 // 用户头像点击 - 修改ID
                 userAvatarBtn.addEventListener('click', function() {
                     if (isIdSetOnce) {
@@ -1509,7 +1766,19 @@
                 
                 // 断开连接
                 disconnectBtn.addEventListener('click', function() {
-                    if (conn) {
+                    if (currentContact && currentContact.id === AI_CONTACT_ID) {
+                        // 断开AI助手连接
+                        isConnected = false;
+                        enableChatInput(false);
+                        disconnectBtn.disabled = true;
+                        connectBtn.style.display = 'block';
+                        
+                        // 更新联系人状态
+                        currentContact.status = 'offline';
+                        updateContactStatus(currentContact.id, 'offline');
+                        
+                        showNotification('已断开与AI助手的连接', false, 'info');
+                    } else if (conn) {
                         conn.close();
                         showNotification('连接已断开', false, 'info');
                     }
@@ -1517,11 +1786,51 @@
             }
             
             // 发送消息
-            function sendMessage() {
+            async function sendMessage() {
                 const message = messageInput.value.trim();
                 
                 if (!message) {
                     showNotification('请输入消息', true);
+                    return;
+                }
+                
+                if (currentContact && currentContact.id === AI_CONTACT_ID) {
+                    // 发送给AI助手
+                    // 添加到聊天界面
+                    addMessageToChat(message, false);
+                    
+                    // 保存到聊天记录
+                    saveMessage(currentContact.id, message, false);
+                    
+                    // 更新联系人的最后一条消息
+                    if (currentContact) {
+                        currentContact.lastMessage = message;
+                        saveContacts();
+                        renderContacts();
+                    }
+                    
+                    // 清空输入框
+                    messageInput.value = '';
+                    
+                    // 显示通知
+                    showNotification('消息已发送', false, 'info');
+                    
+                    // 调用AI API获取回复
+                    const aiResponse = await callAIAPI(message);
+                    
+                    // 添加AI回复到聊天界面
+                    addMessageToChat(aiResponse, true);
+                    
+                    // 保存AI回复到聊天记录
+                    saveMessage(currentContact.id, aiResponse, true);
+                    
+                    // 更新联系人的最后一条消息
+                    if (currentContact) {
+                        currentContact.lastMessage = aiResponse;
+                        saveContacts();
+                        renderContacts();
+                    }
+                    
                     return;
                 }
                 
